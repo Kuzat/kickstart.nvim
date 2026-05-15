@@ -737,6 +737,8 @@ require('lazy').setup({
       end,
       formatters_by_ft = {
         lua = { 'stylua' },
+        markdown = { 'markdownlint' },
+        ['markdown.mdx'] = { 'markdownlint' },
         -- Conform can also run multiple formatters sequentially
         -- python = { "isort", "black" },
         --
@@ -927,28 +929,32 @@ require('lazy').setup({
   },
   { -- Highlight, edit, and navigate code
     'nvim-treesitter/nvim-treesitter',
+    lazy = false, -- nvim-treesitter does not support lazy-loading
     build = ':TSUpdate',
-    main = 'nvim-treesitter.configs', -- Sets main module to use for opts
-    -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
     opts = {
       ensure_installed = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' },
-      -- Autoinstall languages that are not installed
-      auto_install = true,
-      highlight = {
-        enable = true,
-        -- Some languages depend on vim's regex highlighting system (such as Ruby) for indent rules.
-        --  If you are experiencing weird indenting issues, add the language to
-        --  the list of additional_vim_regex_highlighting and disabled languages for indent.
-        additional_vim_regex_highlighting = { 'ruby' },
-      },
-      indent = { enable = true, disable = { 'ruby' } },
     },
-    -- There are additional nvim-treesitter modules that you can use to interact
-    -- with nvim-treesitter. You should go explore a few and see what interests you:
-    --
-    --    - Incremental selection: Included, see `:help nvim-treesitter-incremental-selection-mod`
-    --    - Show your current context: https://github.com/nvim-treesitter/nvim-treesitter-context
-    --    - Treesitter + textobjects: https://github.com/nvim-treesitter/nvim-treesitter-textobjects
+    config = function(_, opts)
+      -- Neovim 0.12 requires the new nvim-treesitter API on the main branch.
+      require('nvim-treesitter').setup()
+
+      -- Parser installation on nvim-treesitter's main branch requires the
+      -- tree-sitter CLI. Install it with your OS package manager, then run
+      -- :TSUpdate. Avoid noisy install failures if it is missing.
+      if vim.fn.executable 'tree-sitter' == 1 then
+        require('nvim-treesitter').install(opts.ensure_installed)
+      end
+
+      vim.api.nvim_create_autocmd('FileType', {
+        pattern = opts.ensure_installed,
+        callback = function(args)
+          local ok = pcall(vim.treesitter.start, args.buf)
+          if ok then
+            vim.bo[args.buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+          end
+        end,
+      })
+    end,
   },
 
   -- The following comments only work if you have downloaded the kickstart repo, not just copy pasted the
